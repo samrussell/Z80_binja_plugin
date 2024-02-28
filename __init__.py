@@ -9,6 +9,9 @@ ColecoView.register()
 from .RelView import RelView
 RelView.register()
 
+from .SegaMasterSystemView import SegaMasterSystemView
+SegaMasterSystemView.register()
+
 # built-in view
 EM_Z80 = 220
 binaryninja.BinaryViewType['ELF'].register_arch(EM_Z80, binaryninja.enums.Endianness.LittleEndian, binaryninja.Architecture['Z80'])
