@@ -422,4 +422,3 @@ class Z80(Architecture):
         Z80IL.gen_instr_il(addr, decoded, il)
 
         return decoded.len
-

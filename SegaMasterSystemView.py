@@ -5,7 +5,7 @@ from struct import unpack
 from binaryninja.binaryview import BinaryView
 from binaryninja.architecture import Architecture
 from binaryninja.types import Symbol
-from binaryninja.enums import SegmentFlag, SymbolType
+from binaryninja.enums import SegmentFlag, SymbolType, SectionSemantics
 
 class SegaMasterSystemView(BinaryView):
 	name = 'SMS'
@@ -44,8 +44,21 @@ class SegaMasterSystemView(BinaryView):
 		# slot 2
 		self.add_auto_segment(0x8000, 0x4000, 0x8000, 0x4000, SegmentFlag.SegmentReadable|SegmentFlag.SegmentExecutable)
 
-        # SMS ROMs start at $0000
-		self.add_entry_point(0)
+		# workaround to disable linear sweep
+		# but also we should mark the interrupt handlers
+		self.add_user_section("entrypoint", 0x00, 0x8, SectionSemantics.ReadOnlyCodeSectionSemantics)
+
+        # SMS ROMs start at $0000, add this and all interrupt handlers
+		self.add_entry_point(0x00)
+		self.add_entry_point(0x08)
+		self.add_entry_point(0x10)
+		self.add_entry_point(0x18)
+		self.add_entry_point(0x20)
+		self.add_entry_point(0x28)
+		self.add_entry_point(0x30)
+		self.add_entry_point(0x38)
+		self.add_entry_point(0x66)
+
 		return True
 
 	def perform_is_executable(self):
