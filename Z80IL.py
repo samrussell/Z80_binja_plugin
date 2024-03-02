@@ -631,9 +631,17 @@ def gen_instr_il(addr, decoded, il):
     elif decoded.op == OP.EX:
         if oper_val == REG.AF:
             # special case, EX AF, AF'
-            # build lhs from flags & A
-            lhs = il.or_expr(2,
-                il.or_expr(1,
+            # do them separately
+            # first flags
+            # save F' in temp
+            il.append(il.expr(LowLevelILOperation.LLIL_SET_REG,
+                LLIL_TEMP(0),
+                il.reg(1, "F'"),
+                size = 1
+            ))
+
+            # then dump flags to F'
+            flags = il.or_expr(1,
                     il.or_expr(1,
                         il.shift_left(1, il.flag('s'), il.const(1, 7)),
                         il.shift_left(1, il.flag('z'), il.const(1, 6))
@@ -648,42 +656,33 @@ def gen_instr_il(addr, decoded, il):
                             il.flag('c')
                         )
                     )
-                ),
-                il.shift_left(2,
-                    il.reg(1, 'A'),
-                    il.const(1, 8)
                 )
-            )
-            # temp0 = lhs
-            il.append(il.expr(LowLevelILOperation.LLIL_SET_REG,
-                LLIL_TEMP(0),
-                lhs,
-                size = 2
-            ))
-
-            # lhs = rhs
-            rhs = il.reg(2, "AF'")
-
-            # copy across AF' and do flags at the end
-            # we only care if A gets set, F doesn't matter
-            il.append(il.set_reg(2,
-                'AF',
-                rhs
-            ))
-
-            # rhs = temp0
-            il.append(il.set_reg(2,
-                "AF'",
-                il.expr(LowLevelILOperation.LLIL_REG, LLIL_TEMP(0), 2)
-            ))
+            il.append(il.set_reg(1, "F'", flags))
 
             # do flags last
-            il.append(il.set_flag('c', il.test_bit(2, il.reg(1, 'F'), il.const(1, 1))))
-            il.append(il.set_flag('h', il.test_bit(2, il.reg(1, 'F'), il.const(1, 1<<4))))
-            il.append(il.set_flag('n', il.test_bit(2, il.reg(1, 'F'), il.const(1, 1<<1))))
-            il.append(il.set_flag('pv', il.test_bit(2, il.reg(1, 'F'), il.const(1, 1<<2))))
-            il.append(il.set_flag('s', il.test_bit(2, il.reg(1, 'F'), il.const(1, 1<<7))))
-            il.append(il.set_flag('z', il.test_bit(2, il.reg(1, 'F'), il.const(1, 1<<6))))
+            temp0 = il.expr(LowLevelILOperation.LLIL_REG, LLIL_TEMP(0))
+            il.append(il.set_flag('c', il.test_bit(2, temp0, il.const(1, 1))))
+            il.append(il.set_flag('h', il.test_bit(2, temp0, il.const(1, 1<<4))))
+            il.append(il.set_flag('n', il.test_bit(2, temp0, il.const(1, 1<<1))))
+            il.append(il.set_flag('pv', il.test_bit(2, temp0, il.const(1, 1<<2))))
+            il.append(il.set_flag('s', il.test_bit(2, temp0, il.const(1, 1<<7))))
+            il.append(il.set_flag('z', il.test_bit(2, temp0, il.const(1, 1<<6))))
+
+            # then swap A like normal
+            # temp0 = A
+            il.append(il.expr(LowLevelILOperation.LLIL_SET_REG,
+                LLIL_TEMP(0),
+                il.reg(1, 'A'),
+                size = 1
+            ))
+
+            # A = A'
+            il.append(il.set_reg(1, 'A', il.reg(1, "A'")))
+            # A' = temp0
+            il.append(il.set_reg(2,
+                "A'",
+                il.expr(LowLevelILOperation.LLIL_REG, LLIL_TEMP(0), 2)
+            ))
 
         else:
             # every other EX is the same

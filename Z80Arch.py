@@ -29,38 +29,44 @@ class Z80(Architecture):
     # register related stuff
     regs = {
         # main registers
-        'AF': RegisterInfo('AF', 2),
+        #'AF': RegisterInfo('AF', 2),
         'BC': RegisterInfo('BC', 2),
         'DE': RegisterInfo('DE', 2),
         'HL': RegisterInfo('HL', 2),
 
         # alternate registers
-        "AF'": RegisterInfo("AF'", 2),
+        #"AF'": RegisterInfo("AF'", 2),
         "BC'": RegisterInfo("BC'", 2),
         "DE'": RegisterInfo("DE'", 2),
         "HL'": RegisterInfo("HL'", 2),
 
         # main registers (sub)
-        "A": RegisterInfo("AF", 1, 1),
-        "F": RegisterInfo("AF", 1, 0),
+        #"A": RegisterInfo("AF", 1, 1),
+        #"F": RegisterInfo("AF", 1, 0),
         "B": RegisterInfo("BC", 1, 1),
         "C": RegisterInfo("BC", 1, 0),
         "D": RegisterInfo("DE", 1, 1),
         "E": RegisterInfo("DE", 1, 0),
         "H": RegisterInfo("HL", 1, 1),
         "L": RegisterInfo("HL", 1, 0),
-        "Flags": RegisterInfo("AF", 0),
+        #"Flags": RegisterInfo("AF", 0),
 
         # alternate registers (sub)
-        "A'": RegisterInfo("AF'", 1, 1),
-        "F'": RegisterInfo("AF'", 1, 0),
+        #"A'": RegisterInfo("AF'", 1, 1),
+        #"F'": RegisterInfo("AF'", 1, 0),
         "B'": RegisterInfo("BC'", 1, 1),
         "C'": RegisterInfo("BC'", 1, 0),
         "D'": RegisterInfo("DE'", 1, 1),
         "E'": RegisterInfo("DE'", 1, 0),
         "H'": RegisterInfo("HL'", 1, 1),
         "L'": RegisterInfo("HL'", 1, 0),
-        "Flags'": RegisterInfo("AF'", 0),
+        #"Flags'": RegisterInfo("AF'", 0),
+
+        # split off A and Flags as their own things
+        # Flags register doesn't exist now
+        "A": RegisterInfo("A", 1),
+        "A'": RegisterInfo("A", 1),
+        "F'": RegisterInfo("A", 1),
 
         # index registers
         'IX': RegisterInfo('IX', 2),
