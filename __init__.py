@@ -3,7 +3,7 @@ import binaryninja
 from .Z80Arch import Z80
 Z80.register()
 
-from .Z80CallingConvention import SMSCallingConvention
+from .Z80CallingConvention import DefaultCallingConvention
 binaryninja.Architecture['Z80'].register_calling_convention(DefaultCallingConvention(binaryninja.Architecture['Z80'], 'default'))
 
 from .ColecoView import ColecoView

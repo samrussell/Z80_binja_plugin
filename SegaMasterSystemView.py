@@ -44,6 +44,10 @@ class SegaMasterSystemView(BinaryView):
 		# slot 2
 		self.add_auto_segment(0x8000, 0x4000, 0x8000, 0x4000, SegmentFlag.SegmentReadable|SegmentFlag.SegmentExecutable)
 
+		# leave 0xc000 for ram and add slots after?
+
+		self.add_auto_segment(0x10000, 0x100000, 0xc000, 0x100000, SegmentFlag.SegmentReadable)
+
 		# workaround to disable linear sweep
 		# but also we should mark the interrupt handlers
 		self.add_user_section("entrypoint", 0x00, 0x8, SectionSemantics.ReadOnlyCodeSectionSemantics)

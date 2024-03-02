@@ -173,4 +173,4 @@ class ColecoView(BinaryView):
 	# but this breaks .synthetic_builtins when the rom mapping uses the whole memory
 	# so we'll leave it at 8
 	def perform_get_address_size(self):
-		return 8
+		return 2
