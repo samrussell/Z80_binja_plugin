@@ -1020,16 +1020,16 @@ def gen_instr_il(addr, decoded, il):
             il.append(il.push(1, il.reg(1, 'A')))
             flags = il.or_expr(1,
                         il.or_expr(1,
-                            il.flag_bit(2, 's', 7),
-                            il.flag_bit(2, 'z', 6),
+                            il.shift_left(1, il.flag('s'), il.const(1, 7)),
+                            il.shift_left(1, il.flag('z'), il.const(1, 6)),
                         ),
                         il.or_expr(1,
                             il.or_expr(1,
-                                il.flag_bit(2, 'h', 4),
-                                il.flag_bit(2, 'pv', 2),
+                                il.shift_left(1, il.flag('h'), il.const(1, 4)),
+                                il.shift_left(1, il.flag('pv'), il.const(1, 2)),
                             ),
                             il.or_expr(1,
-                                il.flag_bit(2, 'n', 1),
+                                il.shift_left(1, il.flag('n'), il.const(1, 1)),
                                 il.flag('c')
                             )
                         )
