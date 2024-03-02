@@ -1,4 +1,5 @@
-from binaryninja.mediumlevelil import MediumLevelILSetVarField, MediumLevelILConst, MediumLevelILOperation, MediumLevelILVarField
+from binaryninja.mediumlevelil import MediumLevelILSetVarField, MediumLevelILConst, MediumLevelILOperation, MediumLevelILVarField, MediumLevelILVar
+from binaryninja.variable import Variable
 
 # this handles cases where 2x 8bit actions are done when a single 16bit action could have been done instead
 def optimize16bitloads(analysis_context):
@@ -38,6 +39,9 @@ def propagate_akku(analysis_context):
                 if var_uses:
                     candidates.append(instruction)
     # now we've finished with the iterator we can destroy things
+    # first find a safe var offset
+    # 0x80000000 is for temp regs and if any are used we want to be above that
+    base_storage = max(0x80000000, max(map(lambda x: x.storage, analysis_context.function.vars)))
     for instruction in candidates:
         ssa_var = instruction.ssa_form.src.src
         var_uses = analysis_context.mlil.get_ssa_var_uses(ssa_var)
@@ -54,12 +58,15 @@ def propagate_akku(analysis_context):
                 legitimate_var_uses.append(var_use)
 
         if len(legitimate_var_uses) == 1:
-            dest = instruction.dest
             src = ssa_var_def.src
-            new_instruction = analysis_context.mlil.expr(MediumLevelILOperation.MLIL_SET_VAR_FIELD, dest.identifier, instruction.offset, src.expr_index)
-            nop_instruction = analysis_context.mlil.expr(MediumLevelILOperation.MLIL_NOP)
-            analysis_context.mlil.replace_expr(instruction, new_instruction)
-            analysis_context.mlil.replace_expr(ssa_var_def, nop_instruction)
+            dest = instruction.dest
+            base_storage = base_storage + 1
+            var = Variable(analysis_context.function, 1, 0, base_storage)
+            analysis_context.function.create_auto_var(var, 'char', '')
+            new_def_instruction = analysis_context.mlil.expr(MediumLevelILOperation.MLIL_SET_VAR, var.identifier, src.expr_index)
+            new_use_instruction = analysis_context.mlil.expr(MediumLevelILOperation.MLIL_SET_VAR_FIELD, dest.identifier, instruction.offset, analysis_context.mlil.expr(MediumLevelILOperation.MLIL_VAR, var.identifier))
+            analysis_context.mlil.replace_expr(ssa_var_def, new_def_instruction)
+            analysis_context.mlil.replace_expr(instruction, new_use_instruction)
             updated = True
     # we need to redo the ssa then
     if updated:
