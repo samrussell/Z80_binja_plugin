@@ -726,8 +726,12 @@ def gen_instr_il(addr, decoded, il):
         il.append(il.intrinsic([], "im", [operand_to_il(oper_type, oper_val, il, 1)]))
 
     elif decoded.op == OP.IN:
+        if operb_type == OPER_TYPE.ADDR_DEREF:
+            src_port = il.const(2, operb_val)
+        else:
+            src_port = operand_to_il(operb_type, operb_val, il, 1)
         temp0 = LLIL_TEMP(0)
-        il.append(il.intrinsic([ILRegister(il.arch, temp0)], "in", [operand_to_il(operb_type, operb_val, il, 1)]))
+        il.append(il.intrinsic([ILRegister(il.arch, temp0)], "in", [src_port]))
         il.append(il.set_reg(1, reg2str(oper_val), il.reg(1, temp0)))
 
     elif decoded.op == OP.INI:
@@ -906,7 +910,14 @@ def gen_instr_il(addr, decoded, il):
         il.append(tmp)
 
     elif decoded.op == OP.OUT:
-        il.append(il.intrinsic([], "out", [operand_to_il(oper_type, oper_val, il, 1), operand_to_il(operb_type, operb_val, il, 1)]))
+        # Z80dis renders OUT (0x1234), A as if (0x1234) is a deref, which it isn't (just the way it displays)
+        # so we need to detect and convert this
+        if oper_type == OPER_TYPE.ADDR_DEREF:
+            dest_port = il.const(2, oper_val)
+        else:
+            dest_port = operand_to_il(oper_type, oper_val, il, 1)
+        output_value = operand_to_il(operb_type, operb_val, il, 1)
+        il.append(il.intrinsic([], "out", [dest_port, output_value]))
 
     elif decoded.op == OP.OUTD:
         # read from (HL)
