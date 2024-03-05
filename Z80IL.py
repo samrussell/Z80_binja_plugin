@@ -804,13 +804,13 @@ def gen_instr_il(addr, decoded, il):
         il.mark_label(end_label)
 
     elif decoded.op == OP.INC:
-        # inc reg can be 1-byte or 2-byte
         if oper_type == OPER_TYPE.REG:
             size = REG_TO_SIZE[oper_val]
-            tmp = il.add(size, operand_to_il(oper_type, oper_val, il), il.const(1, 1))
+            fwt = 'not_c' if size == 1 else None
+            tmp = il.add(size, operand_to_il(oper_type, oper_val, il), il.const(1, 1), flags=fwt)
             tmp = il.set_reg(size, reg2str(oper_val), tmp)
         else:
-            tmp = il.add(1, operand_to_il(oper_type, oper_val, il), il.const(1, 1))
+            tmp = il.add(1, operand_to_il(oper_type, oper_val, il), il.const(1, 1), flags='not_c')
             tmp = il.store(1, operand_to_il(oper_type, oper_val, il, 1, peel_load=True), tmp)
 
         il.append(tmp)
