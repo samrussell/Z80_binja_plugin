@@ -1,28 +1,53 @@
 from binaryninja.mediumlevelil import MediumLevelILSetVarField, MediumLevelILConst, MediumLevelILOperation, MediumLevelILVarField, MediumLevelILVar
+from binaryninja.lowlevelil import ILRegister
 from binaryninja.variable import Variable
+
+# this converts subregs into temp regs when the superreg isn't used in a function
+def split_subregs(analysis_context):
+    updated = False
+    # try to work on the whole function
+    llil = analysis_context.llil
+    regs = llil.regs
+
+    splittable_registers = list(filter(lambda reg: not reg.temp and reg.info.full_width_reg != reg.name and ILRegister(llil.arch, llil.arch.get_reg_index(reg.info.full_width_reg)) not in regs, regs))
+
+    if splittable_registers:
+        print("Found splittable registers for %X" % analysis_context.function.start)
+
+    # for block in analysis_context.llil.basic_blocks:
+    #     # check if we have push;ret
+    #     if len(block) >= 2 and isinstance(block[-1], LowLevelILRet) and isinstance(block[-2], LowLevelILPush):
+    #         # replace push with a tailcall
+    #         analysis_context.llil.replace_expr(block[-1], analysis_context.llil.tailcall(block[-2].operands[0].expr_index))
+    #         analysis_context.llil.replace_expr(block[-2], analysis_context.llil.nop())
+    #         updated = True
+    # we need to redo the ssa then
+    if updated:
+        analysis_context.llil.generate_ssa_form()
 
 # this handles cases where 2x 8bit actions are done when a single 16bit action could have been done instead
 def optimize16bitloads(analysis_context):
     updated = False
+    candidates = []
     for block in analysis_context.mlil.basic_blocks:
-        candidates = []
         for instruction in block:
             if isinstance(instruction, MediumLevelILSetVarField):
                 prev = analysis_context.mlil.get_ssa_var_definition(instruction.ssa_form.prev)
                 if isinstance(prev, MediumLevelILSetVarField):
                     if prev.offset != instruction.offset:
-                        candidates.append(instruction)
+                        candidates.append((instruction, prev))
     # now we've finished with the iterator we can destroy things
-    for instruction in candidates:
-        prev = analysis_context.mlil.get_ssa_var_definition(instruction.ssa_form.prev)
+    for instruction, prev in candidates:
         instrs_by_offset = {x.offset:x for x in [instruction, prev]}
         if isinstance(instrs_by_offset[1].src, MediumLevelILConst) and instrs_by_offset[1].src.value.value == 0:
-            dest = instruction.dest
             src = instrs_by_offset[0].src
-            new_instruction = analysis_context.mlil.expr(MediumLevelILOperation.MLIL_SET_VAR, dest.identifier, src.expr_index)
+            dest = instruction.dest
+            analysis_context.mlil.set_current_address(prev.address)
             nop_instruction = analysis_context.mlil.expr(MediumLevelILOperation.MLIL_NOP)
-            analysis_context.mlil.replace_expr(instruction, new_instruction)
             analysis_context.mlil.replace_expr(prev, nop_instruction)
+            analysis_context.mlil.set_current_address(instruction.address)
+            new_instruction = analysis_context.mlil.expr(MediumLevelILOperation.MLIL_SET_VAR, dest.identifier, src.expr_index)
+            analysis_context.mlil.replace_expr(instruction, new_instruction)
             updated = True
     # we need to redo the ssa then
     if updated:
