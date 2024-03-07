@@ -1,6 +1,38 @@
-from binaryninja.mediumlevelil import MediumLevelILSetVarField, MediumLevelILConst, MediumLevelILOperation, MediumLevelILVarField, MediumLevelILVar
-from binaryninja.lowlevelil import ILRegister
+from binaryninja.mediumlevelil import MediumLevelILSetVarField, MediumLevelILConst, MediumLevelILOperation, MediumLevelILVarField
+from binaryninja.lowlevelil import ILRegister, LLIL_TEMP, LowLevelILInstruction, LowLevelILReg, LowLevelILSetReg, LowLevelILOperation
 from binaryninja.variable import Variable
+from binaryninja import _binaryninjacore as core
+
+# this is going to cause more problems than it solves
+# we need to insert instructions at the start of the function
+# that split up the register into subregisters
+# but we can't do that right now so don't use this
+def update_operands(llil, register, temp_reg):
+    # this should be public on LowLevelILFunction
+    # it is in the cpp interface
+    for expr_index in range(core.BNGetLowLevelILExprCount(llil.handle)):
+        expr = LowLevelILInstruction.create(llil, expr_index)
+        # set
+        if isinstance(expr, LowLevelILSetReg) and expr.dest.index == register.index:
+            # if it gets loaded before ref then perfect, we are fine with that
+            print("%X: Replacing %s and %s" % (expr.address, expr, temp_reg))
+            # i think we need to replace the whole instruction as the dest operand
+            # is not an expr
+            llil.set_current_address(expr.address)
+            llil.replace_expr(expr, llil.expr(LowLevelILOperation.LLIL_SET_REG,
+                temp_reg,
+                expr.src.expr_index,
+                size = 1
+            ))
+
+        if isinstance(expr, LowLevelILReg) and expr.src.index == register.index:
+            # we should be adding a prolog that does temp0 = C etc
+            # but we can't insert instructions
+            # so if you activate this mode then you're gonna have to set temp vars as your registers
+            # have fun
+            print("%X: Replacing %s and %s" % (expr.address, expr, temp_reg))
+            llil.replace_expr(expr, llil.reg(1, temp_reg))
+
 
 # this converts subregs into temp regs when the superreg isn't used in a function
 def split_subregs(analysis_context):
@@ -13,6 +45,13 @@ def split_subregs(analysis_context):
 
     if splittable_registers:
         print("Found splittable registers for %X" % analysis_context.function.start)
+        base_storage = max(0x80000000, max(map(lambda x: x.index, regs)))
+        for register in splittable_registers:
+            base_storage += 1
+            temp_reg = LLIL_TEMP(base_storage) # temp flag is ORed so it's a no-op
+            print("Replacing %s with %s" % (register, temp_reg))
+            update_operands(llil, register, temp_reg)
+        updated = True
 
     # for block in analysis_context.llil.basic_blocks:
     #     # check if we have push;ret

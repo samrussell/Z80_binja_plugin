@@ -14,8 +14,9 @@ wf.register_activity(binaryninja.Activity("extension.smsworkflow.optimize16bitlo
 wf.register_activity(binaryninja.Activity("extension.smsworkflow.propagateakku", action=propagate_akku))
 wf.insert("core.function.analyzeTailCalls", ["extension.smsworkflow.propagateakku", "extension.smsworkflow.optimize16bitloads"])
 
-wf.register_activity(binaryninja.Activity("extension.popretworkflow.split_subregs", action=split_subregs))
-wf.insert("core.function.generateMediumLevelIL", ["extension.popretworkflow.split_subregs"])
+# doesn't work until we can insert LLIL at the start of the function
+# wf.register_activity(binaryninja.Activity("extension.popretworkflow.split_subregs", action=split_subregs))
+# wf.insert("core.function.generateMediumLevelIL", ["extension.popretworkflow.split_subregs"])
 
 wf.register()
 
