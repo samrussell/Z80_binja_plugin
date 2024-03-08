@@ -1,42 +1,58 @@
 from binaryninja.mediumlevelil import MediumLevelILSetVarField, MediumLevelILConst, MediumLevelILOperation, MediumLevelILVarField
-from binaryninja.lowlevelil import ILRegister, LLIL_TEMP, LowLevelILInstruction, LowLevelILReg, LowLevelILSetReg, LowLevelILOperation
+from binaryninja.lowlevelil import ILRegister, LLIL_TEMP, LowLevelILInstruction, LowLevelILReg, LowLevelILSetReg, LowLevelILOperation, LowLevelILLabel
 from binaryninja.variable import Variable
 from binaryninja import _binaryninjacore as core
 
-# this is going to cause more problems than it solves
-# we need to insert instructions at the start of the function
-# that split up the register into subregisters
-# but we can't do that right now so don't use this
+# thanks Glenn Smith @CouleeApps
+def insert_instructions(llil, instructions, first_insn, return_insn = None):
+    # Copy the first expr to a new block of fresh instructions at the end of the function
+    first_copy = llil.expr(
+        first_insn.instr.operation,
+        *first_insn.instr.operands
+    )
+
+    # Start of new block
+    label = LowLevelILLabel()
+    llil.mark_label(label)
+
+    # Contents of block
+    for instruction in instructions:
+        print("Inserting instruction: %s" % instruction)
+        llil.append(instruction)
+
+    # Be sure to put the replaced instruction at the end of our block before we jump back
+    llil.append(first_copy)
+
+    if return_insn:
+        after = LowLevelILLabel()
+        after.handle[0].operand = return_insn.instr_index  # Cursed: No way to cleanly set this from Python
+
+        llil.append(llil.goto(after))
+
+    # Replace first instruction with a jump to our block
+    llil.replace_expr(first_insn, llil.goto(label))
+
 def update_operands(llil, register, temp_reg):
     # this should be public on LowLevelILFunction
     # it is in the cpp interface
+    # coming in a future release
     for expr_index in range(core.BNGetLowLevelILExprCount(llil.handle)):
         expr = LowLevelILInstruction.create(llil, expr_index)
         # set
         if isinstance(expr, LowLevelILSetReg) and expr.dest.index == register.index:
-            # if it gets loaded before ref then perfect, we are fine with that
-            print("%X: Replacing %s and %s" % (expr.address, expr, temp_reg))
-            # i think we need to replace the whole instruction as the dest operand
+            # we need to replace the whole instruction as the dest operand
             # is not an expr
             llil.set_current_address(expr.address)
-            llil.replace_expr(expr, llil.expr(LowLevelILOperation.LLIL_SET_REG,
-                temp_reg,
-                expr.src.expr_index,
-                size = 1
-            ))
+            llil.replace_expr(expr, llil.set_reg(1, temp_reg, expr.src.expr_index))
 
         if isinstance(expr, LowLevelILReg) and expr.src.index == register.index:
-            # we should be adding a prolog that does temp0 = C etc
-            # but we can't insert instructions
-            # so if you activate this mode then you're gonna have to set temp vars as your registers
-            # have fun
-            print("%X: Replacing %s and %s" % (expr.address, expr, temp_reg))
+            # this expression is the src for something else so if we replace it
+            # it gets replaced anywhere it is used
             llil.replace_expr(expr, llil.reg(1, temp_reg))
 
 
 # this converts subregs into temp regs when the superreg isn't used in a function
 def split_subregs(analysis_context):
-    updated = False
     # try to work on the whole function
     llil = analysis_context.llil
     regs = llil.regs
@@ -44,24 +60,24 @@ def split_subregs(analysis_context):
     splittable_registers = list(filter(lambda reg: not reg.temp and reg.info.full_width_reg != reg.name and ILRegister(llil.arch, llil.arch.get_reg_index(reg.info.full_width_reg)) not in regs, regs))
 
     if splittable_registers:
+        # Insert
+        return_insn = llil[1] if len(llil) >= 2 else None
+        last_insn = llil[-1]
         print("Found splittable registers for %X" % analysis_context.function.start)
         base_storage = max(0x80000000, max(map(lambda x: x.index, regs)))
+        mapping_instructions = []
+        unmapping_instructions = []
         for register in splittable_registers:
             base_storage += 1
             temp_reg = LLIL_TEMP(base_storage) # temp flag is ORed so it's a no-op
-            print("Replacing %s with %s" % (register, temp_reg))
             update_operands(llil, register, temp_reg)
-        updated = True
+            mapping_instructions.append(llil.set_reg(1, temp_reg, llil.reg(1, register)))
+            unmapping_instructions.append(llil.set_reg(1, register, llil.reg(1, temp_reg)))
 
-    # for block in analysis_context.llil.basic_blocks:
-    #     # check if we have push;ret
-    #     if len(block) >= 2 and isinstance(block[-1], LowLevelILRet) and isinstance(block[-2], LowLevelILPush):
-    #         # replace push with a tailcall
-    #         analysis_context.llil.replace_expr(block[-1], analysis_context.llil.tailcall(block[-2].operands[0].expr_index))
-    #         analysis_context.llil.replace_expr(block[-2], analysis_context.llil.nop())
-    #         updated = True
-    # we need to redo the ssa then
-    if updated:
+        insert_instructions(llil, mapping_instructions, llil[0], return_insn)
+        insert_instructions(llil, unmapping_instructions, last_insn)
+
+        analysis_context.llil.finalize()
         analysis_context.llil.generate_ssa_form()
 
 # this handles cases where 2x 8bit actions are done when a single 16bit action could have been done instead
